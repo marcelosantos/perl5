@@ -1,3 +1,35 @@
+/* Going forward,
+ *
+ * bring POSIX::setlocale into this file as perl_setlocale().  This is a public
+ * function that returns a string that must be freed by the caller when done.
+ * Various of the public functions in this file can then be made static.
+ *
+ * For non-threaded or early  Posix systems,
+ *  Mutex the setlocale and savepv, otherwise the same as now.
+ *
+ * For 2008 Posix systems,
+ *
+    The strcoll_l(), strerror_l(), and strxfrm_l() are the only _l ones.
+
+ *  make querylocale if not present, using a hash: keys are categories, values are locale names.  This could be omitted on systems with querylocale()
+ *
+ *  If called with NULL, it will return the hash value.  ? LC_ALL
+ *  Otherwise,
+ *          newlocale = newlocale(category ## _MASK, localename, uselocale(NULL));
+ *          if (err) return NULL add DEBUG print of errno;
+ *          uselocale(newlocale);
+ *          modify hash with localename
+ *  probably have base_set_locale called from within locale.c
+ *
+ *  TonyC, concerning  thread-safe locale handling.  I can see how to emulate this for pure perl programs.
+	We have a per-thread variable that contains its locale.  Then we call setlocale()
+	to that locale just before every operation that is affected by locale, protected by a mutex until the
+	operation is done.   There aren't that many.
+	We can have a perl_setlocale() whose return has been  savepv()'d, so must be freed by the caller.
+	But, I don't see how to do this for the general case in XS code.  Perhaps that's where we furnish macros
+	that an XS writer must use around any functions that are locale-sensitive.
+ *
+ */
 /*    locale.c
  *
  *    Copyright (C) 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001,
@@ -59,6 +91,48 @@ static bool debug_initialization = FALSE;
 #endif
 
 #ifdef USE_LOCALE
+
+#ifdef HAS_THREAD_SAFE_LOCALE
+
+#   define DECLARATION_FOR_SAVE_AND_SWITCH_LOCALE                           \
+                                            locale_t LoCaLe_ObJeCt
+
+#   define SAVE_AND_SWITCH_LOCALE(category, old_locale, new_locale)         \
+        STMT_START {                                                        \
+            LoCaLe_ObJeCt = newlocale(category ## _MASK, new_locale, NULL); \
+            if (! LoCaLe_ObJeCt) Perl_croak(aTHX_                           \
+                               "panic: newlocale failed; errno=%d", errno); \
+            if (! uselocale(LoCaLe_ObJeCt)) Perl_croak(aTHX_                \
+                               "panic: uselocale failed; errno=%d", errno); \
+        } STMT_END
+
+#   define RESTORE_LOCALE                                                   \
+        STMT_START {                                                        \
+            if (! uselocale(LC_GLOBAL_LOCALE)) Perl_croak(aTHX_             \
+                               "panic: uselocale failed; errno=%d", errno); \
+            freelocale(LoCaLe_ObJeCt);                                      \
+        } STMT_END
+
+#else
+#   define DECLARATION_FOR_SAVE_AND_SWITCH_LOCALE                           \
+        char * SaVe_LoCaLe; int CaTeGoRy
+
+#   define SAVE_AND_SWITCH_LOCALE(category, old_locale, new_locale)         \
+        STMT_START {                                                        \
+            SaVe_LoCaLe = savepv(old_locale);                               \
+            CaTeGoRy    = category;                                         \
+            if (! setlocale(category, new_locale)) Perl_croak(aTHX_         \
+  "panic: setlocale(%d, %s) failed; errno=%d", category, new_locale, errno); \
+        } STMT_END
+
+#   define RESTORE_LOCALE                                                   \
+        STMT_START {                                                        \
+            if (! setlocale(CaTeGoRy, SaVe_LoCaLe)) Perl_croak(aTHX_        \
+ "panic: setlocale(%d, %s) failed; errno=%d", CaTeGoRy, SaVe_LoCaLe, errno); \
+            Safefree(SaVe_LoCaLe);                                          \
+        } STMT_END
+
+#endif
 
 /*
  * Standardize the locale name from a string returned by 'setlocale', possibly
@@ -425,19 +499,16 @@ Perl_new_ctype(pTHX_ const char *newctype)
              * Most programs don't use locales, so they are immune to bad ones.
              * */
             if (IN_LC(LC_CTYPE) || UNLIKELY(DEBUG_L_TEST)) {
+                DECLARATION_FOR_SAVE_AND_SWITCH_LOCALE;
 
-                /* We have to save 'newctype' because the setlocale() just
-                 * below may destroy it.  The next setlocale() further down
-                 * should restore it properly so that the intermediate change
-                 * here is transparent to this function's caller */
-                const char * const badlocale = savepv(newctype);
-
-                setlocale(LC_CTYPE, "C");
+		LOCALE_LOCK;
+                SAVE_AND_SWITCH_LOCALE(LC_CTYPE, newctype, "C");
 
                 /* The '0' below suppresses a bogus gcc compiler warning */
                 Perl_warner(aTHX_ packWARN(WARN_LOCALE), SvPVX(PL_warn_locale), 0);
-                setlocale(LC_CTYPE, badlocale);
-                Safefree(badlocale);
+
+                RESTORE_LOCALE;
+		LOCALE_UNLOCK;
                 SvREFCNT_dec_NN(PL_warn_locale);
                 PL_warn_locale = NULL;
             }
@@ -1465,7 +1536,7 @@ Perl__mem_collxfrm(pTHX_ const char *input_string,
      * otherwise contain that character, but otherwise there may be
      * less-than-perfect results with that character and NUL.  This is
      * unavoidable unless we replace strxfrm with our own implementation. */
-    if (s_strlen < len) {
+    if (UNLIKELY(s_strlen < len)) {
         char * e = s + len;
         char * sans_nuls;
         STRLEN cur_min_char_len;
@@ -1608,6 +1679,7 @@ Perl__mem_collxfrm(pTHX_ const char *input_string,
 
     /* Make sure the UTF8ness of the string and locale match */
     if (utf8 != PL_in_utf8_COLLATE_locale) {
+        /* XXX convert above Unicode to 10FFFF? */
         const char * const t = s;   /* Temporary so we can later find where the
                                        input was */
 
