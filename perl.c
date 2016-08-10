@@ -433,7 +433,13 @@ perl_construct(pTHXx)
     PL_WB_invlist = _new_invlist_C_array(_Perl_WB_invlist);
     PL_LB_invlist = _new_invlist_C_array(_Perl_LB_invlist);
 #ifdef USE_THREAD_SAFE_LOCALE
+    errno = 0;
     PL_C_locale_obj = newlocale(LC_ALL_MASK, "C", NULL);
+    if (! PL_C_locale_obj) {
+        const int save_errno = errno;
+        Perl_croak_nocontext(
+            "Cannot create POSIX 2008 C locale object; errno=%d", save_errno);
+    }
 #endif
 
     ENTER;
