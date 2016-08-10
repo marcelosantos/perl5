@@ -2546,15 +2546,22 @@ Perl_my_strerror(pTHX_ const int errnum)
 
 #  endif
 
+    DEBUG_Lv(PerlIO_printf(Perl_debug_log, "%s: %d: my_strerror called with errnum %d\n", __FILE__, __LINE__, errnum));
     if (! within_locale_scope) {
         errno = 0;
 
 #  ifdef USE_THREAD_SAFE_LOCALE /* Use the thread-safe locale functions */
 
+        DEBUG_Lv(PerlIO_printf(Perl_debug_log, "%s: %d: not within locale scope, about to call uselocale(0x%"UVxf")\n", __FILE__, __LINE__, PTR2UV(PL_C_locale_obj)));
         save_locale = uselocale(PL_C_locale_obj);
         if (! save_locale) {
             DEBUG_L(PerlIO_printf(Perl_debug_log,
                                   "uselocale failed, errno=%d\n", errno));
+        }
+        else {
+            DEBUG_Lv(PerlIO_printf(Perl_debug_log,
+                     "%s: %d: uselocale returned 0x%"UVxf"\n",
+                     __FILE__, __LINE__, PTR2UV(save_locale)));
         }
 
 #  else    /* Not thread-safe build */
@@ -2580,11 +2587,44 @@ Perl_my_strerror(pTHX_ const int errnum)
 #  endif
 
     }   /* end of ! within_locale_scope */
+    else {
+        DEBUG_Lv(PerlIO_printf(Perl_debug_log, "%s: %d: WITHIN locale scope\n",
+                                               __FILE__, __LINE__));
+    }
 
 #endif
 
+    DEBUG_Lv(PerlIO_printf(Perl_debug_log, "%s: %d: Any locale change has been done; about to call Strerror\n", __FILE__, __LINE__));
     errstr = Strerror(errnum);
     if (errstr) {
+        int i = 0;
+        bool prev_was_printable = TRUE;
+        bool first_time = TRUE;
+        if (DEBUG_Lv_TEST) {
+            DEBUG_Lv(PerlIO_printf(Perl_debug_log, "%s: %d: Strerror returned; saving a copy: '", __FILE__, __LINE__));
+            while (1) {
+                U8 byte = *(errstr + i);
+                if (isPRINT(byte)) {
+                    if (! prev_was_printable) {
+                        PerlIO_printf(Perl_debug_log, " ");
+                    }
+                    PerlIO_printf(Perl_debug_log, "%c", (U8) byte);
+                    prev_was_printable = TRUE;
+                }
+                else {
+                    if (! first_time) {
+                        PerlIO_printf(Perl_debug_log, " ");
+                    }
+                    PerlIO_printf(Perl_debug_log, "%02X", byte);
+                    prev_was_printable = FALSE;
+                }
+                first_time = FALSE;
+                if (byte == '\0') break;
+                i++;
+            }
+            PerlIO_printf(Perl_debug_log, "'\n");
+        }
+
         errstr = savepv(errstr);
         SAVEFREEPV(errstr);
     }
@@ -2596,6 +2636,7 @@ Perl_my_strerror(pTHX_ const int errnum)
 
 #  ifdef USE_THREAD_SAFE_LOCALE
 
+        DEBUG_Lv(PerlIO_printf(Perl_debug_log, "%s: %d: not within locale scope, restoring the locale\n", __FILE__, __LINE__));
         if (save_locale && ! uselocale(save_locale)) {
             DEBUG_L(PerlIO_printf(Perl_debug_log,
                           "uselocale restore failed, errno=%d\n", errno));
