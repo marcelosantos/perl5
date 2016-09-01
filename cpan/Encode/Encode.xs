@@ -254,7 +254,7 @@ encode_method(pTHX_ const encode_t * enc, const encpage_t * dir, SV * src,
         }
         /* settle variables when fallback */
         d    = (U8 *)SvEND(dst);
-            dlen = SvLEN(dst) - ddone - 1;
+        dlen = SvLEN(dst) - ddone - 1;
         s    = (U8*)SvPVX(src) + sdone;
         slen = tlen - sdone;
         break;
@@ -409,7 +409,7 @@ process_utf8(pTHX_ SV* dst, U8* s, U8* e, SV *check_sv,
                             ERR_DECODE_NOMAP, "utf8", uv);
         }
         if (check & ENCODE_RETURN_ON_ERR) {
-                break;
+            break;
         }
         if (check & (ENCODE_PERLQQ|ENCODE_HTMLCREF|ENCODE_XMLCREF)){
 	    SV* subchar =
