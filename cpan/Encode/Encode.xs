@@ -31,12 +31,6 @@
 UNIMPLEMENTED(_encoded_utf8_to_bytes, I32)
 UNIMPLEMENTED(_encoded_bytes_to_utf8, I32)
 
-#ifdef UTF8_DISALLOW_ILLEGAL_INTERCHANGE
-#   define UTF8_ALLOW_STRICT UTF8_DISALLOW_ILLEGAL_INTERCHANGE
-#else
-#   define UTF8_ALLOW_STRICT 0
-#endif
-
 #define UTF8_ALLOW_NONSTRICT (UTF8_ALLOW_ANY &                    \
                               ~(UTF8_ALLOW_CONTINUATION |         \
                                 UTF8_ALLOW_NON_CONTINUATION |     \
@@ -322,12 +316,30 @@ static U8*
 process_utf8(pTHX_ SV* dst, U8* s, U8* e, SV *check_sv,
              bool encode, bool strict, bool stop_at_partial)
 {
+    /* Copies the purportedly UTF-8 encoded string starting at 's' and ending
+     * at 'e' - 1 to 'dst', checking as it goes along that the string actually
+     * is valid UTF-8.  There are two levels of strictness checking.  If
+     * 'strict' is FALSE, the string is checked for being well-formed UTF-8, as
+     * extended by Perl.  Additionally, if 'strict' is TRUE, above-Unicode code
+     * points, surrogates, and non-character code points are checked for.  When
+     * invalid input is encountered, some action is taken, exactly what depends
+     * on the flags in 'check_sv'.  'encode' gives if this is from an encode
+     * operation (if TRUE), or a decode one.  This function returns the
+     * position in 's' of the start of the next character beyond where it got
+     * to.  If there were no problems, that will be 'e'.  If 'stop_at_partial'
+     * is TRUE, if the final character before 'e' is incomplete, but valid as
+     * far as is available, no action will be taken on that partial character,
+     * and the return value will point to its first byte */
+
     UV uv;
     STRLEN ulen;
     SV *fallback_cb;
     int check;
     U8 *d;
     STRLEN dlen;
+    const U32 flags = (strict)
+                      ? UTF8_DISALLOW_ILLEGAL_INTERCHANGE
+                      : 0;
 
     if (SvROK(check_sv)) {
 	/* croak("UTF-8 decoder doesn't support callback CHECK"); */
@@ -346,59 +358,42 @@ process_utf8(pTHX_ SV* dst, U8* s, U8* e, SV *check_sv,
     d = (U8 *) SvGROW(dst, dlen);
 
     while (s < e) {
-        if (UTF8_IS_INVARIANT(*s)) {
-            *d++ = *s++;
-            continue;
+
+        /* If there were no errors, this will be 'e'; otherwise it will point
+         * to the first byte of the erroneous input */
+        const U8* e_or_where_failed;
+
+        bool valid = is_utf8_string_loc_flags(s, e - s, &e_or_where_failed, flags);
+        STRLEN len = e_or_where_failed - s;
+
+        /* Copy as far as was successful */
+        Move(s, d, len, U8);
+        d += len;
+        s = (U8 *) e_or_where_failed;
+
+        if (    LIKELY(valid)
+            || (  (stop_at_partial || (check & ENCODE_STOP_AT_PARTIAL))
+                && is_utf8_valid_partial_char_flags(s, e, flags)))
+        {
+            break;
         }
 
-        if (UTF8_IS_START(*s)) {
-            U8 skip = UTF8SKIP(s);
-            if ((s + skip) > e) {
-                if (stop_at_partial || (check & ENCODE_STOP_AT_PARTIAL)) {
-                    const U8 *p = s + 1;
-                    for (; p < e; p++) {
-                        if (!UTF8_IS_CONTINUATION(*p))
-                            goto malformed_byte;
-                    }
-                    break;
-                }
-
-                goto malformed_byte;
-            }
-
-            uv = utf8n_to_uvuni(s, e - s, &ulen,
-                                UTF8_CHECK_ONLY | (strict ? UTF8_ALLOW_STRICT :
-                                                            UTF8_ALLOW_NONSTRICT)
-                               );
-#if 1 /* perl-5.8.6 and older do not check UTF8_ALLOW_LONG */
-        if (strict && uv > PERL_UNICODE_MAX)
-        ulen = (STRLEN) -1;
-#endif
-            if (ulen == (STRLEN) -1) {
-                if (strict) {
-                    uv = utf8n_to_uvuni(s, e - s, &ulen,
+        /* If not 'strict', all well-formed code points are legal, so we know
+         * the failing one has to be not well-formed, use the first byte of it.
+         * If 'strict', it could be either malformed or illegal code point, so
+         * we have to test which */
+        if (! strict || ! isUTF8_CHAR(s, e)) {
+            uv = utf8n_to_uvchr(s, e - s, &ulen,
                                         UTF8_CHECK_ONLY | UTF8_ALLOW_NONSTRICT);
-                    if (ulen == (STRLEN) -1)
-                        goto malformed_byte;
-                    goto malformed;
-                }
-                goto malformed_byte;
+            if (ulen == (STRLEN) -1) {
+                uv = (UV)*s;
+                ulen = 1;
             }
-
-
-             /* Whole char is good */
-             memcpy(d, s, skip);
-             d += skip;
-             s += skip;
-             continue;
+        }
+        else {
+            uv = valid_utf8_to_uvchr(s, &ulen);
         }
 
-        /* If we get here there is something wrong with alleged UTF-8 */
-    malformed_byte:
-        uv = (UV)*s;
-        ulen = 1;
-
-    malformed:
         if (check & ENCODE_DIE_ON_ERR){
             if (encode)
                 Perl_croak(aTHX_ ERR_ENCODE_NOMAP, uv, "utf8");
