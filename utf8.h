@@ -71,7 +71,7 @@ the string is invariant.
                             uvoffuni_to_utf8_flags(d,NATIVE_TO_UNI(uv),flags)
 #define utf8_to_uvchr_buf(s, e, lenp)                                          \
                      utf8n_to_uvchr(s, (U8*)(e) - (U8*)(s), lenp,              \
-                                    ckWARN_d(WARN_UTF8) ? 0 : UTF8_ALLOW_ANY)
+                                                           UTF8_ALLOW_DEFAULT)
 #define utf8n_to_uvchr(s, len, lenp, flags)                                    \
                                 utf8n_to_uvchr_error(s, len, lenp, flags, 0)
 
