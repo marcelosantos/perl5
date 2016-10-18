@@ -107,6 +107,7 @@ encode_method(pTHX_ const encode_t * enc, const encpage_t * dir, SV * src,
     STRLEN tlen  = slen;
     STRLEN ddone = 0;
     STRLEN sdone = 0;
+    U8 *s0;
     /* We allocate slen+1.
        PerlIO dumps core if this value is smaller than this. */
     SV *dst = sv_2mortal(newSV(slen+1));
@@ -133,6 +134,8 @@ encode_method(pTHX_ const encode_t * enc, const encpage_t * dir, SV * src,
     SvPOK_only(dst);
     goto ENCODE_END;
     }
+
+    s0 = s;
 
     while( (code = do_encode(dir, s, &slen, d, dlen, &dlen, !check,
                  trm, trmlen)) ) 
@@ -185,7 +188,7 @@ encode_method(pTHX_ const encode_t * enc, const encpage_t * dir, SV * src,
         if (dir == enc->f_utf8) {
         STRLEN clen;
         UV ch =
-            utf8n_to_uvuni(s+slen, (SvCUR(src)-slen),
+            utf8n_to_uvuni(s+slen, tlen - (s + slen - s0),
                    &clen, UTF8_ALLOW_ANY|UTF8_CHECK_ONLY);
         /* if non-representable multibyte prefix at end of current buffer - break*/
         if (clen > tlen - sdone) break;
