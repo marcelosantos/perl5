@@ -1,13 +1,16 @@
 #!/usr/bin/perl -w
 
 use strict;
-use Test::More tests => 10;  # one test is in each BaseInc* itself
+use Test::More tests => 11;  # one test is in each BaseInc* itself
 
 use lib 't/lib';
 
 # make it look like an older perl
 BEGIN { push @INC, '.' if $INC[-1] ne '.' }
 
+use base 'BaseIncChecker';
+
+BEGIN { @BaseIncExtender::ISA = () } # make it look like an optional load
 use base 'BaseIncExtender';
 
 BEGIN {
@@ -16,6 +19,7 @@ BEGIN {
     is $INC[-1], '.', 'dot still at end @INC after using base';
 }
 
+BEGIN { @BaseIncDoubleExtender::ISA = () } # make it look like an optional load
 use base 'BaseIncDoubleExtender';
 
 BEGIN {
