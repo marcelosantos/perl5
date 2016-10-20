@@ -8,8 +8,8 @@ $VERSION =~ tr/_//d;
 
 # simplest way to avoid indexing of the package: no package statement
 sub base::__inc_scope_guard::DESTROY {
-	my $noop = $_[0][0];
-	ref $_ and $_ == $noop and $_ = '.' for @INC;
+    my $hook = $_[0][0];
+    ref eq 'CODE' and $_ == $hook and $_ = '.' for @INC;
 }
 
 # constant.pm is slow
@@ -103,9 +103,9 @@ sub import {
             {
                 local $SIG{__DIE__};
                 my $fn = _module_to_filename($base);
-                my $dotty = $INC[-1] eq '.' && ( $INC[-1] = sub {()} );
-                eval {
-                    my $redotty = $dotty && bless [ $dotty ], 'base::__inc_scope_guard';
+                my $success = eval {
+                    my $incdot = $INC[-1] eq '.' && %{"$base\::"} # only if optional
+                        && bless [ $INC[-1] = sub {()} ], 'base::__inc_scope_guard';
                     require $fn
                 };
                 # Only ignore "Can't locate" errors from our eval require.
@@ -118,28 +118,26 @@ sub import {
                 # see [perl #118561]
                 die if $@ && $@ !~ /^Can't locate \Q$fn\E .*? at .* line [0-9]+(?:, <[^>]*> (?:line|chunk) [0-9]+)?\.\n\z/s
                           || $@ =~ /Compilation failed in require at .* line [0-9]+(?:, <[^>]*> (?:line|chunk) [0-9]+)?\.\n\z/;
-                unless (%{"$base\::"}) {
+                if (!%{"$base\::"}) {
                     require Carp;
-                    my @inc = $dotty ? @INC[0..$#INC-1] : @INC;
                     local $" = " ";
-                    my $e = <<ERROR;
+                    Carp::croak(<<ERROR);
 Base class package "$base" is empty.
     (Perhaps you need to 'use' the module which defines that package first,
-    or make that module available in \@INC (\@INC contains: @inc).
+    or make that module available in \@INC (\@INC contains: @INC).
 ERROR
-                    if ($dotty && -e $fn) {
-                        $e .= <<ERROS;
-    The file $fn does exist in the current directory.  But note
-    that base.pm, when loading a module, now ignores the current working
-    directory if it is the last entry in \@INC.  If your software worked on
-    previous versions of Perl, the best solution is to use FindBin to
-    detect the path properly and to add that path to \@INC.  As a last
-    resort, you can re-enable looking in the current working directory by
-    adding "use lib '.'" to your code.
-ERROS
-                    }
-                    $e =~ s/\n\z/)\n/;
-                    Carp::croak($e);
+                }
+                elsif (!$success && $INC[-1] eq '.' && (my @fn = grep -e && !( -d _ || -b _ ), $fn.'c', $fn)) {
+                    require Carp;
+                    Carp::croak(<<ERROR);
+Base class package "$base" is not empty but "$fn[0]" exists in the current directory.
+    To help avoid security issues, base.pm now refuses to load optional modules
+    from the current working directory when it is the last entry in \@INC.
+    If your software worked on previous versions of Perl, the best solution
+    is to use FindBin to detect the path properly and to add that path to
+    \@INC.  As a last resort, you can re-enable looking in the current working
+    directory by adding "use lib '.'" to your code.
+ERROR
                 }
                 $sigdie = $SIG{__DIE__} || undef;
             }
