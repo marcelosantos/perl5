@@ -388,6 +388,7 @@ S_is_utf8_cp_above_31_bits(const U8 * const s, const U8 * const e)
     const STRLEN prefix_len = sizeof(prefix) - 1;
     const STRLEN len = e - s;
     const STRLEN cmp_len = MIN(prefix_len, len - 1);
+    dTHX;
 
 #else
 
@@ -413,11 +414,18 @@ S_is_utf8_cp_above_31_bits(const U8 * const s, const U8 * const e)
      * bytes, and maybe up through 8 bytes, to be sure if the value is above 31
      * bits. */
     if (*s != 0xFE || len == 1) {
+        DEBUG_U(PerlIO_printf(Perl_debug_log, "%s: %d: is_utf8_cp_above_31_bits(%s, len=%d) returning false\n", __FILE__, __LINE__, _byte_dump_string(s, len), (int) len));
         return FALSE;
     }
 
     /* Note that in UTF-EBCDIC, the two lowest possible continuation bytes are
      * \x41 and \x42. */
+    DEBUG_U(PerlIO_printf(Perl_debug_log, "%s: %d: cBOOL(memGT(%s, %s, %d) returned %d\n",
+                                           __FILE__, __LINE__,
+                                           _byte_dump_string(s + 1, e - (s +1)),
+                                           _byte_dump_string(prefix, sizeof(prefix) - 1),
+                                           (int) cmp_len,
+                                           cBOOL(memGT(s + 1, prefix, cmp_len))));
     return cBOOL(memGT(s + 1, prefix, cmp_len));
 
 #endif
