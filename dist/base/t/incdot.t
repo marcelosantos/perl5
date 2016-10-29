@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 use strict;
-use Test::More tests => 10; # two extra tests in each BaseInc*.pm
+use Test::More tests => 11; # two extra tests in each BaseInc*.pm
 
 sub rendered_comparison {
     my ( $got, $expected ) = @_;
@@ -25,6 +25,8 @@ BEGIN {
     ok !$success, 'loading optional modules from . fails';
     is_deeply \@INC, \@expected, '... without changes to @INC'
         or diag rendered_comparison [@INC], [@expected];
+    like $err, qr!Base class package "t::lib::Dummy" is not empty but "t/lib/Dummy\.pm" exists in the current directory\.!,
+        '... and the proper error message';
 }
 
 BEGIN { @BaseIncExtender::ISA = () } # make it look like an optional load
