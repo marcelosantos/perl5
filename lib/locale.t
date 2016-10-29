@@ -750,8 +750,9 @@ debug "Scanning for locales...\n";
 
 require POSIX; import POSIX ':locale_h';
 
-my @Locale = find_locales([ 'LC_CTYPE', 'LC_NUMERIC', 'LC_ALL' ]);
-my @include_incompatible_locales = find_locales('LC_CTYPE',
+my $categories = [ 'LC_CTYPE', 'LC_NUMERIC', 'LC_ALL' ];
+my @Locale = find_locales($categories);
+my @include_incompatible_locales = find_locales($categories,
                                                 'even incompatible locales');
 
 # The locales included in the incompatible list that aren't in the compatible
@@ -778,7 +779,10 @@ if (@Locale < @include_incompatible_locales) {
             push @warnings, ($warning =~ s/\n/\n# /sgr);
         };
 
-        setlocale(&POSIX::LC_CTYPE, $bad_locale);
+        if (!  setlocale(&POSIX::LC_CTYPE, $bad_locale)) {
+            skip("setlocale(&POSIX::LC_CTYPE, '$bad_locale') failed");
+            next;
+        }
 
         my $message = "testing of locale '$bad_locale' is skipped";
         if (@warnings) {
