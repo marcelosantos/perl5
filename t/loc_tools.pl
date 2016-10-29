@@ -73,6 +73,7 @@ sub _trylocale ($$$$) { # For use only by other functions in this file!
     my $list = shift;
     my $allow_incompatible = shift;
 
+    print STDERR "# trying '$locale'\n";
     return if ! $locale || grep { $locale eq $_ } @$list;
 
     $categories = [ $categories ] unless ref $categories;
@@ -84,7 +85,10 @@ sub _trylocale ($$$$) { # For use only by other functions in this file!
 
     local $SIG{__WARN__} = sub {
         $badutf8 = 1 if $_[0] =~ /Malformed UTF-8/;
-        $plays_well = 0 if $_[0] =~ /Locale .* may not work well/i
+        $plays_well = 0 if $_[0] =~ /Locale .* may not work well/i;
+        my $warn = $_[0];
+        chomp $warn;
+        print STDERR "# setlocale(foo, $locale) gave this warning: $warn\n";
     };
 
     # Incompatible locales aren't warned about unless using locales.
@@ -94,7 +98,11 @@ sub _trylocale ($$$$) { # For use only by other functions in this file!
         die "category '$category' must instead be a number"
                                             unless $category =~ / ^ -? \d+ $ /x;
 
-        return unless setlocale($category, $locale);
+        print STDERR "# Calling setlocale($category_name{$category}, '$locale')\n";
+        my $ret = setlocale($category, $locale);
+        print STDERR "# setlocale($category, '$locale') failed\n" unless $ret;
+        return unless $ret;
+        #return unless setlocale($category, $locale);
         return if ! $plays_well && ! $allow_incompatible;
     }
 
@@ -255,7 +263,8 @@ sub find_locales ($;$) {
     # multiple) for all of them.  Each category can be a name (like 'LC_ALL'
     # or simply 'ALL') or the C enum value for the category.
 
-    my $categories = shift;
+    my $input_categories = shift;
+    my $categories = $input_categories;
     my $allow_incompatible = shift // 0;
 
     $categories = [ $categories ] unless ref $categories;
