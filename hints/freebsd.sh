@@ -312,3 +312,8 @@ d_printf_format_null='undef'
 
 # As of 10.3-RELEASE FreeBSD.  See [perl #128867]
 d_uselocale='undef'
+
+
+# Per advice from khw 2016-10-30
+d_strlcpy='undef'
+
