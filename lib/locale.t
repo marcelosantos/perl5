@@ -754,6 +754,9 @@ my $categories = [ 'LC_CTYPE', 'LC_NUMERIC', 'LC_ALL' ];
 my @Locale = find_locales($categories);
 my @include_incompatible_locales = find_locales($categories,
                                                 'even incompatible locales');
+use Data::Dumper;
+debug "Normal", Dumper \@Locale;
+debug "All", Dumper \@Locale;
 
 # The locales included in the incompatible list that aren't in the compatible
 # one.
