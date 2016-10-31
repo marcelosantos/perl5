@@ -2719,7 +2719,16 @@ Perl__setlocale_debug_string(const int category,        /* category number,
     static char ret[128] = "If you can read this, thank your buggy C"
                            " library strlcpy(), and change your hints file"
                            " to undef it";
-    my_strlcpy(ret, "setlocale(", sizeof(ret));
+    Size_t strlcpy_result;
+    dTHX;
+
+    DEBUG_L(PerlIO_printf(Perl_debug_log,
+            "%s: %d: About to call my_strlcpy(ret, \"setlocale(\", %"UVuf")\n",
+            __FILE__, __LINE__, sizeof(ret)));
+    strlcpy_result = my_strlcpy(ret, "setlocale(", sizeof(ret));
+    DEBUG_L(PerlIO_printf(Perl_debug_log,
+            "%s: %d: my_strlcpy returned %"UVuf", dest=%s\n",
+            __FILE__, __LINE__, strlcpy_result, ret));
 
     switch (category) {
         default:

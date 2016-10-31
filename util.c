@@ -5777,7 +5777,11 @@ Size_t
 Perl_my_strlcpy(char *dst, const char *src, Size_t size)
 {
     Size_t length, copy;
+    dTHX;
 
+    DEBUG_L(PerlIO_printf(Perl_debug_log,
+            "%s: %d: my_strlcpy(dest, \"%s\", %"UVuf") called\n",
+            __FILE__, __LINE__, src, size));
     length = strlen(src);
     if (size > 0) {
         copy = (length >= size) ? size - 1 : length;
