@@ -704,10 +704,6 @@ no legal conversion from that type of reference to a typeglob.
 (P) Perl detected an attempt to copy a value to an internal type that cannot
 be directly assigned to.
 
-=item Cannot create POSIX 2008 C locale object; errno=%d
-
-(F) XXX
-
 =item Cannot find encoding "%s"
 
 (S io) You tried to apply an encoding that did not exist to a filehandle,
