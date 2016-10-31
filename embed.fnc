@@ -1209,7 +1209,6 @@ ApdO	|AV*	|get_av		|NN const char *name|I32 flags
 ApdO	|HV*	|get_hv		|NN const char *name|I32 flags
 ApdO	|CV*	|get_cv		|NN const char* name|I32 flags
 Apd	|CV*	|get_cvn_flags	|NN const char* name|STRLEN len|I32 flags
-Anpdo	|char*	|setlocale	|int category|NULLOK const char* locale
 #ifdef WIN32
 ApPM	|char*	|my_setlocale	|int category|NULLOK const char* locale
 #else
