@@ -263,7 +263,8 @@ sub find_locales ($;$) {
     # multiple) for all of them.  Each category can be a name (like 'LC_ALL'
     # or simply 'ALL') or the C enum value for the category.
 
-    my $categories = shift;
+    my $input_categories = shift;
+    my $categories = $input_categories;
     my $allow_incompatible = shift // 0;
 
     $categories = [ $categories ] unless ref $categories;
