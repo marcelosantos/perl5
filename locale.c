@@ -439,7 +439,10 @@ Perl_new_ctype(pTHX_ const char *newctype)
                 setlocale(LC_CTYPE, badlocale);
                 Safefree(badlocale);
                 SvREFCNT_dec_NN(PL_warn_locale);
-                PL_warn_locale = NULL;
+                if (IN_LC(LC_CTYPE)) {  /* Don't clear it if only printing
+                                           because of debugging */
+                    PL_warn_locale = NULL;
+                }
             }
         }
     }
